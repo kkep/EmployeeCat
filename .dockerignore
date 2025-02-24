@@ -1,0 +1,11 @@
+.gradle
+build
+src/main/resources/application-dev.properties
+Dockerfile
+.dockerignore
+.git
+.gitignore
+out
+*.iml
+*.ipr
+*.iws

@@ -1,21 +1,32 @@
-# Building (Сборка)
-FROM gradle:8.12.1-jdk17 as builder
+# Build stage
+FROM gradle:8.12.1-jdk17 AS builder
+
 WORKDIR /app
 
-# Install Node.js 18 (LTS)
-RUN apt-get update && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs
-
+# Copy gradle configuration files first to leverage cache
 COPY . .
-RUN ./gradlew clean build -x test --no-daemon --console=verbose
 
-RUN ls -l /app/build/libs
+# Download dependencies (cacheable layer)
+RUN gradle dependencies --no-daemon
 
-# Running
-FROM openjdk:11-jre-slim
+# Copy application source
+COPY src ./src
+
+# Build application with production profile
+RUN gradle build --no-daemon -Pvaadin.productionMode
+
+# Runtime stage
+FROM eclipse-temurin:17-jre-jammy
+
 WORKDIR /app
 
-COPY --from=builder /app/build/libs/EmployeeCat-0.0.1-SNAPSHOT.jar /app/app.jar
+# Copy built jar from builder stage
+COPY --from=builder /app/build/libs/EmployeeCat-0.0.1-SNAPSHOT.jar app.jar
+
+# Set production environment variables
+ENV SPRING_PROFILES_ACTIVE=prod \
+    JAVA_OPTS="-Xmx512m -Djava.security.egd=file:/dev/./urandom"
+
 EXPOSE 8080
-RUN chmod +x /app/app.jar
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+
+ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -jar app.jar"]
